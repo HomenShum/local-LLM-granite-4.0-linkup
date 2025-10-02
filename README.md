@@ -10,7 +10,7 @@ app_build_command: npm run build
 app_file: dist/index.html
 thumbnail: >-
   https://huggingface.co/spaces/ibm-granite/Granite-4.0-WebGPU/resolve/main/public/banner.png
-short_description: Run Granite-4.0-Micro locally in your browser on WebGPU
+short_description: Run Granite-4.0-Micro 100% locally in your browser on WebGPU
 models:
 - onnx-community/granite-4.0-micro-ONNX-web
 - onnx-community/granite-4.0-micro-ONNX
