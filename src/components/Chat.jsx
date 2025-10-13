@@ -31,6 +31,39 @@ export default function Chat({ messages }) {
               <>
                 <BotIcon className="h-6 w-6 min-h-6 min-w-6 my-3 text-gray-500 dark:text-gray-300" />
                 <div className="bg-gray-200 dark:bg-gray-700 rounded-lg p-4">
+                  {/* Tool calling indicator */}
+                  {msg.toolCalling && msg.tools && (
+                    <div className="mb-3 p-2 bg-blue-100 dark:bg-blue-900 rounded text-sm">
+                      <span className="font-semibold">🔧 Calling tools:</span>{" "}
+                      {msg.tools.join(", ")}
+                    </div>
+                  )}
+
+                  {/* Tool results */}
+                  {msg.toolResults && msg.toolResults.length > 0 && (
+                    <div className="mb-3 space-y-2">
+                      {msg.toolResults.map((tr, idx) => (
+                        <div
+                          key={idx}
+                          className={`p-2 rounded text-sm ${
+                            tr.success
+                              ? "bg-green-100 dark:bg-green-900"
+                              : "bg-red-100 dark:bg-red-900"
+                          }`}
+                        >
+                          <div className="font-semibold">
+                            {tr.success ? "✓" : "✗"} {tr.toolName}
+                          </div>
+                          <div className="text-xs mt-1 opacity-80">
+                            {tr.result.substring(0, 200)}
+                            {tr.result.length > 200 ? "..." : ""}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Main content */}
                   <p className="min-h-6 text-gray-800 dark:text-gray-200 overflow-wrap-anywhere">
                     {msg.content.length > 0 ? (
                       <span

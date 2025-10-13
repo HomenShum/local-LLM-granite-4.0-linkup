@@ -5,6 +5,8 @@ import {
   InterruptableStoppingCriteria,
 } from "@huggingface/transformers";
 
+import { TOOLS, executeTool, parseToolCalls, formatToolResultForModel } from "./utils/tools.js";
+
 /**
  * Helper function to perform feature detection for WebGPU
  */
@@ -49,13 +51,15 @@ class TextGenerationPipeline {
 const stopping_criteria = new InterruptableStoppingCriteria();
 
 let past_key_values_cache = null;
-async function generate(messages) {
-  // Retrieve the text-generation pipeline.
-  const [tokenizer, model] = await TextGenerationPipeline.getInstance();
 
+/**
+ * Generate a single response from the model
+ */
+async function generateSingleResponse(tokenizer, model, messages, useTools = true) {
   const inputs = tokenizer.apply_chat_template(messages, {
     add_generation_prompt: true,
     return_dict: true,
+    tools: useTools ? TOOLS : undefined,
   });
 
   let startTime;
@@ -79,38 +83,161 @@ async function generate(messages) {
 
   const streamer = new TextStreamer(tokenizer, {
     skip_prompt: true,
-    skip_special_tokens: true,
+    skip_special_tokens: false, // Keep special tokens to detect tool calls
     callback_function,
     token_callback_function,
   });
 
-  // Tell the main thread we are starting
-  self.postMessage({ status: "start" });
+  let genResult;
+  try {
+    genResult = await model.generate({
+      ...inputs,
+      past_key_values: past_key_values_cache,
 
-  const { past_key_values, sequences } = await model.generate({
-    ...inputs,
-    past_key_values: past_key_values_cache,
+      // Sampling
+      // do_sample: true,
+      // top_k: 3,
+      // temperature: 0.2,
 
-    // Sampling
-    // do_sample: true,
-    // top_k: 3,
-    // temperature: 0.2,
+      max_new_tokens: 1024,
+      streamer,
+      stopping_criteria,
+      return_dict_in_generate: true,
+    });
+  } catch (err) {
+    // Handle potential WebGPU/ONNX device loss or stale buffer references
+    const msg = String(err?.message || err);
+    if (
+      err?.name === "AbortError" ||
+      /valid external Instance reference no longer exists/i.test(msg)
+    ) {
+      console.warn("Model.generate failed due to device/buffer issue. Resetting cache and retrying once.");
+      past_key_values_cache = null;
+      genResult = await model.generate({
+        ...inputs,
+        max_new_tokens: 1024,
+        streamer,
+        stopping_criteria,
+        return_dict_in_generate: true,
+      });
+    } else {
+      throw err;
+    }
+  }
 
-    max_new_tokens: 1024,
-    streamer,
-    stopping_criteria,
-    return_dict_in_generate: true,
-  });
+  const { past_key_values, sequences } = genResult;
   past_key_values_cache = past_key_values;
 
   const decoded = tokenizer.batch_decode(sequences, {
-    skip_special_tokens: true,
+    skip_special_tokens: false,
   });
 
-  // Send the output back to the main thread
+  return { decoded, tps, numTokens };
+}
+
+/**
+ * Main generate function with tool calling support
+ */
+async function generate(messages, enableTools = true) {
+  // Retrieve the text-generation pipeline.
+  const [tokenizer, model] = await TextGenerationPipeline.getInstance();
+
+  // Ensure we don't reuse stale GPU buffers between user requests
+  past_key_values_cache = null;
+
+  // Tell the main thread we are starting
+  self.postMessage({ status: "start" });
+
+  let conversationMessages = [...messages];
+  let maxToolIterations = 5; // Prevent infinite loops
+  let iteration = 0;
+  let allowTools = enableTools; // we may disable tools after first successful round
+
+  while (iteration < maxToolIterations) {
+    iteration++;
+
+    // Generate response
+    const { decoded, tps, numTokens } = await generateSingleResponse(
+      tokenizer,
+      model,
+      conversationMessages,
+      allowTools
+    );
+
+    const responseText = decoded[0];
+
+    // Check for tool calls
+    const toolCalls = allowTools ? parseToolCalls(responseText) : [];
+
+    if (toolCalls.length === 0) {
+      // No tool calls, we're done
+      // Clean up the response text by removing special tokens
+      const cleanedResponse = responseText
+        .replace(/<\|start_of_role\|>.*?<\|end_of_role\|>/g, "")
+        .replace(/<\|end_of_text\|>/g, "")
+        .trim();
+
+      self.postMessage({
+        status: "complete",
+        output: [cleanedResponse],
+        tps,
+        numTokens,
+      });
+      return;
+    }
+
+    // Execute tool calls
+    self.postMessage({
+      status: "tool_calling",
+      tools: toolCalls.map((tc) => tc.name),
+    });
+
+    const toolResults = [];
+    for (const toolCall of toolCalls) {
+      try {
+        const result = await executeTool(toolCall.name, toolCall.arguments);
+        toolResults.push(formatToolResultForModel(toolCall.name, result));
+
+        // Send tool result to UI
+        self.postMessage({
+          status: "tool_result",
+          toolName: toolCall.name,
+          result: result.result,
+          success: result.success,
+        });
+      } catch (error) {
+        console.error("Tool execution error:", error);
+        toolResults.push(
+          formatToolResultForModel(toolCall.name, {
+            success: false,
+            error: error.message,
+          })
+        );
+      }
+    }
+
+    // Add assistant's response with tool calls and tool results to conversation
+    conversationMessages.push({
+      role: "assistant",
+      content: responseText,
+    });
+
+    // Add explicit instruction to produce a final answer using tool results
+    conversationMessages.push({
+      role: "user",
+      content:
+        "The tools above have been executed. Using ONLY the <tool_result> content, provide a concise, well-structured answer to the user's last request. Include brief citations to the most relevant sources. Do not call tools again unless strictly necessary.\n\n" +
+        toolResults.join("\n\n"),
+    });
+
+    // After one successful tool round, disable further tool calls to force a final answer
+    allowTools = false;
+  }
+
+  // If we hit max iterations, send what we have
   self.postMessage({
     status: "complete",
-    output: decoded,
+    output: ["Maximum tool iterations reached. Please try rephrasing your question."],
   });
 }
 
@@ -139,7 +266,7 @@ async function load() {
 }
 // Listen for messages from the main thread
 self.addEventListener("message", async (e) => {
-  const { type, data } = e.data;
+  const { type, data, enableTools } = e.data;
 
   switch (type) {
     case "check":
@@ -152,7 +279,7 @@ self.addEventListener("message", async (e) => {
 
     case "generate":
       stopping_criteria.reset();
-      generate(data);
+      generate(data, enableTools !== false); // Default to true
       break;
 
     case "interrupt":

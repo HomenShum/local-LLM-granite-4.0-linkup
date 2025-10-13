@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Financial Governance Test Runner</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+        background: #f5f5f5;
+      }
+      h1 {
+        color: #333;
+      }
+      .controls {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      .scenario {
+        background: white;
+        padding: 20px;
+        margin-bottom: 15px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      .scenario.running {
+        border-left: 4px solid #3b82f6;
+      }
+      .scenario.passed {
+        border-left: 4px solid #10b981;
+      }
+      .scenario.failed {
+        border-left: 4px solid #ef4444;
+      }
+      .scenario-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+      }
+      .scenario-title {
+        font-weight: bold;
+        font-size: 18px;
+      }
+      .status {
+        padding: 4px 12px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: bold;
+      }
+      .status.pending {
+        background: #e5e7eb;
+        color: #6b7280;
+      }
+      .status.running {
+        background: #dbeafe;
+        color: #3b82f6;
+      }
+      .status.passed {
+        background: #d1fae5;
+        color: #10b981;
+      }
+      .status.failed {
+        background: #fee2e2;
+        color: #ef4444;
+      }
+      .query {
+        background: #f9fafb;
+        padding: 10px;
+        border-radius: 4px;
+        margin: 10px 0;
+        font-family: monospace;
+        font-size: 14px;
+      }
+      .result {
+        margin-top: 10px;
+        padding: 10px;
+        background: #f9fafb;
+        border-radius: 4px;
+        max-height: 300px;
+        overflow-y: auto;
+      }
+      .tools-called {
+        margin: 10px 0;
+        font-size: 14px;
+      }
+      .tool-badge {
+        display: inline-block;
+        background: #3b82f6;
+        color: white;
+        padding: 2px 8px;
+        border-radius: 4px;
+        margin-right: 5px;
+        font-size: 12px;
+      }
+      button {
+        background: #3b82f6;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 16px;
+        margin-right: 10px;
+      }
+      button:hover {
+        background: #2563eb;
+      }
+      button:disabled {
+        background: #9ca3af;
+        cursor: not-allowed;
+      }
+      .summary {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      .summary-stats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 15px;
+        margin-top: 15px;
+      }
+      .stat {
+        text-align: center;
+        padding: 15px;
+        border-radius: 6px;
+      }
+      .stat-value {
+        font-size: 32px;
+        font-weight: bold;
+        margin-bottom: 5px;
+      }
+      .stat-label {
+        font-size: 14px;
+        color: #6b7280;
+      }
+      .validation-item {
+        padding: 5px 0;
+        font-size: 14px;
+      }
+      .validation-item.pass {
+        color: #10b981;
+      }
+      .validation-item.fail {
+        color: #ef4444;
+      }
+      .validation-item.warn {
+        color: #f59e0b;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>🏦 Financial Governance Engine - Test Suite</h1>
+
+    <div class="summary" id="summary">
+      <h2>Test Summary</h2>
+      <div class="summary-stats">
+        <div class="stat" style="background: #dbeafe">
+          <div class="stat-value" id="total-count">0</div>
+          <div class="stat-label">Total Tests</div>
+        </div>
+        <div class="stat" style="background: #d1fae5">
+          <div class="stat-value" id="passed-count">0</div>
+          <div class="stat-label">Passed</div>
+        </div>
+        <div class="stat" style="background: #fee2e2">
+          <div class="stat-value" id="failed-count">0</div>
+          <div class="stat-label">Failed</div>
+        </div>
+        <div class="stat" style="background: #e5e7eb">
+          <div class="stat-value" id="pending-count">0</div>
+          <div class="stat-label">Pending</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="run-all" onclick="runAllScenarios()">
+        ▶️ Run All Scenarios
+      </button>
+      <button id="run-selected" onclick="runSelectedScenarios()">
+        ▶️ Run Selected
+      </button>
+      <button id="stop" onclick="stopTests()" disabled>⏹️ Stop</button>
+      <button onclick="clearResults()">🗑️ Clear Results</button>
+      <button onclick="exportResults()">💾 Export Results</button>
+    </div>
+
+    <div id="scenarios-container"></div>
+
+    <script type="module">
+      import { FINANCIAL_GOVERNANCE_SCENARIOS, validateScenarioResult } from './financial-governance-scenarios.js';
+
+      let isRunning = false;
+      let currentScenario = null;
+      const results = [];
+
+      // Initialize scenarios display
+      function initScenarios() {
+        const container = document.getElementById('scenarios-container');
+        container.innerHTML = '';
+
+        FINANCIAL_GOVERNANCE_SCENARIOS.forEach((scenario) => {
+          const div = document.createElement('div');
+          div.className = 'scenario';
+          div.id = `scenario-${scenario.id}`;
+          div.innerHTML = `
+            <div class="scenario-header">
+              <div>
+                <input type="checkbox" id="check-${scenario.id}" checked />
+                <span class="scenario-title">${scenario.id}. ${scenario.name}</span>
+              </div>
+              <span class="status pending" id="status-${scenario.id}">PENDING</span>
+            </div>
+            <div style="color: #6b7280; margin-bottom: 10px;">${scenario.description}</div>
+            <div class="query">${scenario.query}</div>
+            <div class="tools-called" id="tools-${scenario.id}"></div>
+            <div class="result" id="result-${scenario.id}" style="display: none;"></div>
+            <div id="validation-${scenario.id}"></div>
+          `;
+          container.appendChild(div);
+        });
+
+        updateSummary();
+      }
+
+      function updateSummary() {
+        document.getElementById('total-count').textContent = FINANCIAL_GOVERNANCE_SCENARIOS.length;
+        document.getElementById('passed-count').textContent = results.filter(r => r.passed).length;
+        document.getElementById('failed-count').textContent = results.filter(r => !r.passed && r.completed).length;
+        document.getElementById('pending-count').textContent = FINANCIAL_GOVERNANCE_SCENARIOS.length - results.filter(r => r.completed).length;
+      }
+
+      async function runScenario(scenario) {
+        const scenarioDiv = document.getElementById(`scenario-${scenario.id}`);
+        const statusSpan = document.getElementById(`status-${scenario.id}`);
+        const toolsDiv = document.getElementById(`tools-${scenario.id}`);
+        const resultDiv = document.getElementById(`result-${scenario.id}`);
+        const validationDiv = document.getElementById(`validation-${scenario.id}`);
+
+        scenarioDiv.className = 'scenario running';
+        statusSpan.className = 'status running';
+        statusSpan.textContent = 'RUNNING...';
+
+        try {
+          // This would integrate with your actual worker
+          // For now, we'll simulate the test
+          console.log(`Running scenario ${scenario.id}: ${scenario.name}`);
+          console.log(`Query: ${scenario.query}`);
+
+          // Simulate tool execution
+          await new Promise(resolve => setTimeout(resolve, 2000));
+
+          // Mock result - in real implementation, this would come from the worker
+          const mockResult = {
+            toolsCalled: scenario.expectedTools,
+            finalResponse: `Mock response for ${scenario.name}`,
+            completed: true,
+          };
+
+          // Display tools called
+          toolsDiv.innerHTML = 'Tools called: ' + 
+            mockResult.toolsCalled.map(t => `<span class="tool-badge">${t}</span>`).join('');
+
+          // Display result
+          resultDiv.style.display = 'block';
+          resultDiv.textContent = mockResult.finalResponse;
+
+          // Validate
+          const validation = validateScenarioResult(scenario, mockResult);
+          
+          // Display validation results
+          let validationHTML = '<div style="margin-top: 10px;">';
+          if (validation.failures.length > 0) {
+            validationHTML += '<div style="font-weight: bold; color: #ef4444;">Failures:</div>';
+            validation.failures.forEach(f => {
+              validationHTML += `<div class="validation-item fail">✗ ${f}</div>`;
+            });
+          }
+          if (validation.warnings.length > 0) {
+            validationHTML += '<div style="font-weight: bold; color: #f59e0b; margin-top: 5px;">Warnings:</div>';
+            validation.warnings.forEach(w => {
+              validationHTML += `<div class="validation-item warn">⚠ ${w}</div>`;
+            });
+          }
+          if (validation.passed && validation.failures.length === 0) {
+            validationHTML += '<div class="validation-item pass">✓ All validations passed</div>';
+          }
+          validationHTML += '</div>';
+          validationDiv.innerHTML = validationHTML;
+
+          // Update status
+          if (validation.passed) {
+            scenarioDiv.className = 'scenario passed';
+            statusSpan.className = 'status passed';
+            statusSpan.textContent = 'PASSED';
+          } else {
+            scenarioDiv.className = 'scenario failed';
+            statusSpan.className = 'status failed';
+            statusSpan.textContent = 'FAILED';
+          }
+
+          results.push({ ...validation, completed: true });
+          updateSummary();
+
+        } catch (error) {
+          console.error(`Error running scenario ${scenario.id}:`, error);
+          scenarioDiv.className = 'scenario failed';
+          statusSpan.className = 'status failed';
+          statusSpan.textContent = 'ERROR';
+          resultDiv.style.display = 'block';
+          resultDiv.textContent = `Error: ${error.message}`;
+          results.push({ scenarioId: scenario.id, passed: false, completed: true, error: error.message });
+          updateSummary();
+        }
+      }
+
+      window.runAllScenarios = async function() {
+        if (isRunning) return;
+        isRunning = true;
+        document.getElementById('run-all').disabled = true;
+        document.getElementById('run-selected').disabled = true;
+        document.getElementById('stop').disabled = false;
+
+        for (const scenario of FINANCIAL_GOVERNANCE_SCENARIOS) {
+          if (!isRunning) break;
+          currentScenario = scenario;
+          await runScenario(scenario);
+        }
+
+        isRunning = false;
+        currentScenario = null;
+        document.getElementById('run-all').disabled = false;
+        document.getElementById('run-selected').disabled = false;
+        document.getElementById('stop').disabled = true;
+      };
+
+      window.runSelectedScenarios = async function() {
+        if (isRunning) return;
+        isRunning = true;
+        document.getElementById('run-all').disabled = true;
+        document.getElementById('run-selected').disabled = true;
+        document.getElementById('stop').disabled = false;
+
+        for (const scenario of FINANCIAL_GOVERNANCE_SCENARIOS) {
+          if (!isRunning) break;
+          const checkbox = document.getElementById(`check-${scenario.id}`);
+          if (checkbox && checkbox.checked) {
+            currentScenario = scenario;
+            await runScenario(scenario);
+          }
+        }
+
+        isRunning = false;
+        currentScenario = null;
+        document.getElementById('run-all').disabled = false;
+        document.getElementById('run-selected').disabled = false;
+        document.getElementById('stop').disabled = true;
+      };
+
+      window.stopTests = function() {
+        isRunning = false;
+      };
+
+      window.clearResults = function() {
+        results.length = 0;
+        initScenarios();
+      };
+
+      window.exportResults = function() {
+        const data = {
+          timestamp: new Date().toISOString(),
+          summary: {
+            total: FINANCIAL_GOVERNANCE_SCENARIOS.length,
+            passed: results.filter(r => r.passed).length,
+            failed: results.filter(r => !r.passed && r.completed).length,
+          },
+          results: results,
+        };
+
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `test-results-${Date.now()}.json`;
+        a.click();
+      };
+
+      // Initialize on load
+      initScenarios();
+    </script>
+  </body>
+</html>
+

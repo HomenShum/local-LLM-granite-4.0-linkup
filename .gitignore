@@ -1,0 +1,16 @@
+node_modules
+
+# Environment variables (contains API keys)
+.env
+.env.local
+
+# Build output
+dist
+*.log
+
+# Test results
+test-results-*.json
+
+# OS files
+.DS_Store
+Thumbs.db

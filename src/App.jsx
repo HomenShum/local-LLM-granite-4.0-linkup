@@ -32,6 +32,7 @@ function App() {
   const [messages, setMessages] = useState([]);
   const [tps, setTps] = useState(null);
   const [numTokens, setNumTokens] = useState(null);
+  const [toolsInProgress, setToolsInProgress] = useState([]);
 
   function onEnter(message) {
     setMessages((prev) => [...prev, { role: "user", content: message }]);
@@ -138,10 +139,50 @@ function App() {
         case "complete":
           // Generation complete: re-enable the "Generate" button
           setIsRunning(false);
+          setToolsInProgress([]);
+          break;
+
+        case "tool_calling":
+          // Model is calling tools
+          setToolsInProgress(e.data.tools || []);
+          setMessages((prev) => {
+            const cloned = [...prev];
+            const last = cloned.at(-1);
+            if (last && last.role === "assistant") {
+              cloned[cloned.length - 1] = {
+                ...last,
+                toolCalling: true,
+                tools: e.data.tools,
+              };
+            }
+            return cloned;
+          });
+          break;
+
+        case "tool_result":
+          // Tool execution result
+          setMessages((prev) => {
+            const cloned = [...prev];
+            const last = cloned.at(-1);
+            if (last && last.role === "assistant") {
+              const toolResults = last.toolResults || [];
+              toolResults.push({
+                toolName: e.data.toolName,
+                result: e.data.result,
+                success: e.data.success,
+              });
+              cloned[cloned.length - 1] = {
+                ...last,
+                toolResults,
+              };
+            }
+            return cloned;
+          });
           break;
 
         case "error":
           setError(e.data.data);
+          setToolsInProgress([]);
           break;
       }
     };
