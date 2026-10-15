@@ -2,6 +2,8 @@
 
 This document describes the tool calling functionality integrated into the Granite-4.0-WebGPU application.
 
+**2026-10-15 source correction:** This is a browser demo with direct remote Linkup requests. The supplied Vite key is available to the browser user; see [SECURITY.md](SECURITY.md). The financial prompts below are examples, not newly evaluated compliance results.
+
 ## Overview
 
 The Granite-4.0 model has been enhanced with tool calling capabilities, allowing it to:
@@ -97,6 +99,8 @@ The model uses the tool results to generate a comprehensive answer to the user's
 
 ### API Key Setup
 
+Read the [credential boundary](SECURITY.md) before supplying a key. A hosting secret or Git-ignored environment file does not make a browser-held credential private. This source does not read `VITE_ENABLE_TOOLS`; it is not a supported disable switch.
+
 **Required:** You must configure your Linkup API key before using tool calling features.
 
 1. **Get your API key** from [Linkup Dashboard](https://app.linkup.so)
@@ -109,7 +113,6 @@ The model uses the tool results to generate a comprehensive answer to the user's
 3. **Edit `.env` and add your API key:**
    ```bash
    VITE_LINKUP_API_KEY=your_actual_api_key_here
-   VITE_ENABLE_TOOLS=true
    ```
 
 4. **Restart the dev server** to load the new environment variables:
@@ -118,6 +121,8 @@ The model uses the tool results to generate a comprehensive answer to the user's
    ```
 
 ### For Node.js Tests
+
+The separate smoke script makes real API calls and logs a key prefix. Do not publish its output or run it in shared logs with a private key; see [the log boundary](SECURITY.md#test-and-log-boundaries). It was not run for this update.
 
 When running smoke tests from the command line, set the environment variable:
 
@@ -199,7 +204,7 @@ tests/
 
 ### Test Scenarios
 
-10 comprehensive financial governance test scenarios are provided in:
+Ten financial-governance fixtures plus two additional multi-tool fixtures are defined in:
 `tests/financial-governance-scenarios.js`
 
 Scenarios cover:
@@ -214,7 +219,9 @@ Scenarios cover:
 9. Loan-to-Value (LTV) Ratios
 10. Stress Testing Scenarios
 
-### Running Tests
+### Running the simulation
+
+The browser page below supplies expected tool names as observed results and creates a mock answer; it never calls the worker. Its green status and exported results are simulation output, not evidence of real model/tool execution. It imports only the ten-case financial array, not the two extra multi-tool fixtures. Answer criteria add warnings rather than failing the scenario.
 
 1. **Open the test runner:**
    ```bash
@@ -285,7 +292,7 @@ Example queries to test:
 1. **Error Handling**: Always handle API errors gracefully
 2. **Rate Limiting**: Implement exponential backoff
 3. **Result Validation**: Validate tool results before using
-4. **Security**: Never expose API keys in client code (use environment variables)
+4. **Security**: The current `VITE_LINKUP_API_KEY` reaches browser code. Environment variables and Git exclusion do not hide it from visitors; use the [current credential boundary](SECURITY.md) when deciding whether to host this design.
 
 ## Troubleshooting
 
@@ -336,3 +343,7 @@ Potential improvements:
 - [Transformers.js Documentation](https://huggingface.co/docs/transformers.js)
 - [Tool Calling Guide](https://huggingface.co/docs/transformers/main/en/chat_templating#automated-function-conversion-for-tool-use)
 
+
+## Documentation change record
+
+**2026-10-15:** Corrected browser-key secrecy and scenario-evidence claims, removed the unsupported tool-disable setting from current setup, and disclosed CLI key-prefix logging. Runtime and tests remain unchanged. Related corrections: [README](README.md), [security](SECURITY.md), [deployment history](DEPLOYMENT_READY.md) and [implementation history](IMPLEMENTATION_SUMMARY.md).

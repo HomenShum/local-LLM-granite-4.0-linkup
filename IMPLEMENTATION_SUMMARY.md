@@ -1,3 +1,12 @@
+# Historical implementation report
+
+**2026-10-15 correction:** The original report below records October 2025 claims, including smoke-test counts, timing and financial-answer quality. Those are historical assertions, not measurements repeated for this GitHub copy. Its own hardcoded-key and environment-key advice reflects different stages of the old work. Current browser code reads a Vite key and sends it directly to Linkup; the browser scenario page constructs simulated output.
+
+Use the [current README](README.md), [credential boundary](SECURITY.md), [tool/test explanation](TOOL_CALLING.md) and [deployment history](DEPLOYMENT_READY.md) for the current limits. Runtime, tests and provider behavior are unchanged by this correction. The entire original report is preserved byte-for-byte below.
+
+<details>
+<summary>Original October 2025 implementation report — historical claims</summary>
+
 # Tool Calling Implementation Summary
 
 ## 🎉 Implementation Complete
@@ -343,3 +352,5 @@ For issues or questions:
 **Version:** 1.0.0  
 **Status:** ✅ Complete and Tested
 
+
+</details>
