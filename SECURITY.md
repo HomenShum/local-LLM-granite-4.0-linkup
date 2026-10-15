@@ -1,159 +1,40 @@
-# Security Policy
+# Credential and data boundary
 
-## API Key Management
+A developer deciding whether to publish this demo needs to know who can read its tool credential. The current browser sends requests directly to Linkup, so a credential needed by that browser is available to its user.
 
-### ⚠️ Important Security Notice
+**Reviewed source: 2026-10-15, revision `d399954`.** This document corrects the previous environment-variable secrecy advice. It does not certify the app, hosting configuration or past key handling.
 
-This project uses the Linkup API for web search and URL fetching capabilities. **Never commit API keys to version control.**
+## Browser configuration is visible to visitors
 
-### Secure Configuration
+[src/utils/linkupApi.js](src/utils/linkupApi.js) reads `import.meta.env.VITE_LINKUP_API_KEY` and sends it in the Authorization header to Linkup's search and fetch endpoints. [App.jsx](src/App.jsx) creates the worker, which imports [tools.js](src/utils/tools.js), which imports that API module.
 
-1. **Environment Variables**
-   - API keys are loaded from environment variables
-   - Browser app: `VITE_LINKUP_API_KEY` in `.env` file
-   - Node.js tests: `LINKUP_API_KEY` environment variable
+[Vite exposes `VITE_` variables in client source](https://vite.dev/guide/env-and-mode). A hosting-platform secret supplied to a static frontend build does not remain server-only after its value is bundled.
 
-2. **Protected Files**
-   - `.env` - Contains actual API keys (in `.gitignore`)
-   - `.env.local` - Local overrides (in `.gitignore`)
-   - `test-results-*.json` - May contain API responses (in `.gitignore`)
+- Git exclusion protects an environment file from ordinary commits; it does not protect a key delivered to a visitor's browser.
+- Do not use a shared private credential in a publicly served build of this design.
+- Keeping a credential private from visitors requires an implemented trusted server boundary. This repository's current direct-browser requests do not provide one.
+- Never commit actual credentials or paste them into issues, screenshots, exported results or logs.
 
-3. **Safe Files**
-   - `.env.example` - Template with placeholder values (committed to git)
+For local source exploration, no credential needs to be entered. Real tool requests need a Linkup credential; review the exposure above before supplying `VITE_LINKUP_API_KEY` through local Vite configuration. The source does not use `VITE_ENABLE_TOOLS` as a disable switch.
 
-### Setup Instructions
+## What leaves the browser
 
-1. **Copy the example file:**
-   ```bash
-   cp .env.example .env
-   ```
+The search request sends the query and selected options. URL fetching sends the selected URL and fetch options. Both send the Bearer credential to Linkup. Model execution in the worker does not make those requests local or establish an end-to-end privacy guarantee.
 
-2. **Add your API key to `.env`:**
-   ```bash
-   VITE_LINKUP_API_KEY=your_actual_api_key_here
-   VITE_ENABLE_TOOLS=true
-   ```
+This review inspected source call sites. It did not inspect an actual key, built bundle, browser request, provider account or deployment.
 
-3. **Verify `.env` is in `.gitignore`:**
-   ```bash
-   cat .gitignore | grep .env
-   ```
+## Test and log boundaries
 
-### For Developers
+The browser page [tests/run-scenarios.html](tests/run-scenarios.html) is a simulation: it creates mock output from expected tool names and does not call the worker. Its pass display cannot certify credential safety or real tool execution.
 
-#### Before Committing
+The separate [tests/run-smoke-test.mjs](tests/run-smoke-test.mjs) reads the process variable `LINKUP_API_KEY`, makes real API calls and currently logs the first 20 characters of that value. Treat that output as sensitive. Do not run it in shared logs with a private credential or publish its output. This documentation update does not fix the script's logging.
 
-1. **Check for exposed keys:**
-   ```bash
-   git diff --cached | grep -i "api.*key"
-   ```
+No provider test was run for this review. Historical test counts and latency measurements in the [implementation report](IMPLEMENTATION_SUMMARY.md) remain historical.
 
-2. **Verify .gitignore is working:**
-   ```bash
-   git status --ignored
-   ```
+## If a credential has been exposed
 
-3. **Never hardcode API keys** in source files
+Revoke it through the provider and review its use before issuing a replacement. Removing a tracked file or changing an environment setting does not invalidate a credential already copied by someone else. Do not include the credential when reporting the issue.
 
-#### If You Accidentally Commit a Key
+## Documentation change record
 
-1. **Immediately revoke the key** at [Linkup Dashboard](https://app.linkup.so)
-2. **Generate a new key**
-3. **Remove the key from git history:**
-   ```bash
-   # Use git-filter-repo or BFG Repo-Cleaner
-   # See: https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository
-   ```
-4. **Force push** (if already pushed to remote)
-5. **Update all team members** to pull the cleaned history
-
-### Running Tests Securely
-
-#### Browser Tests
-```bash
-# API key loaded from .env automatically
-npm run dev
-# Navigate to http://localhost:5173/tests/run-scenarios.html
-```
-
-#### Command-Line Tests
-```bash
-# Option 1: Inline (not recommended - visible in shell history)
-LINKUP_API_KEY=your_key node tests/run-smoke-test.mjs
-
-# Option 2: Export in shell (better)
-export LINKUP_API_KEY=your_key
-node tests/run-smoke-test.mjs
-
-# Option 3: Use .env file with dotenv (best for CI/CD)
-# Add to package.json: "test": "dotenv -e .env -- node tests/run-smoke-test.mjs"
-```
-
-### CI/CD Configuration
-
-For GitHub Actions, GitLab CI, or other CI/CD platforms:
-
-1. **Add API key as a secret** in your CI/CD platform settings
-2. **Reference the secret** in your workflow:
-
-   ```yaml
-   # GitHub Actions example
-   - name: Run smoke tests
-     env:
-       LINKUP_API_KEY: ${{ secrets.LINKUP_API_KEY }}
-     run: node tests/run-smoke-test.mjs
-   ```
-
-### Production Deployment
-
-1. **Use environment variables** provided by your hosting platform:
-   - Vercel: Environment Variables in project settings
-   - Netlify: Environment Variables in site settings
-   - AWS: Systems Manager Parameter Store or Secrets Manager
-   - Docker: Pass via `-e` flag or docker-compose environment section
-
-2. **Never include `.env` in production builds**
-
-3. **Rotate keys regularly** (recommended: every 90 days)
-
-### Reporting Security Issues
-
-If you discover a security vulnerability:
-
-1. **Do NOT open a public issue**
-2. **Email the maintainers** with details
-3. **Include:**
-   - Description of the vulnerability
-   - Steps to reproduce
-   - Potential impact
-   - Suggested fix (if any)
-
-### Best Practices
-
-✅ **DO:**
-- Use environment variables for all secrets
-- Keep `.env` in `.gitignore`
-- Rotate API keys regularly
-- Use different keys for dev/staging/production
-- Review git diffs before committing
-- Use secret scanning tools (e.g., git-secrets, truffleHog)
-
-❌ **DON'T:**
-- Hardcode API keys in source files
-- Commit `.env` files
-- Share API keys in chat/email
-- Use production keys in development
-- Log API keys to console in production
-- Include keys in error messages
-
-### Additional Resources
-
-- [Linkup API Documentation](https://docs.linkup.so)
-- [GitHub: Removing Sensitive Data](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository)
-- [OWASP: Secrets Management Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html)
-
----
-
-**Last Updated:** 2025-10-13  
-**Version:** 1.0.0
-
+**2026-10-15:** Replaced misleading browser-secret and secure-test guidance with the current caller, data and logging boundaries. No key value was read, no provider request was made, and no runtime protection was added. Related corrections: [README](README.md), [tool guide](TOOL_CALLING.md), [deployment history](DEPLOYMENT_READY.md) and [implementation history](IMPLEMENTATION_SUMMARY.md).

@@ -16,119 +16,67 @@ models:
 - onnx-community/granite-4.0-micro-ONNX
 ---
 
-# Granite-4.0 WebGPU with Tool Calling
+# Granite WebGPU browser demo
 
-Run Granite-4.0-Micro 100% locally in your browser with **tool calling** capabilities powered by [Linkup API](https://linkup.so).
+This React/Vite prototype runs Granite inference in a browser worker and connects its search and URL-fetch tools to Linkup. A developer evaluating this copy should distinguish local model execution, remote tool requests and simulated test output before using it as an application foundation.
 
-## Features
+**Current handoff: 2026-10-15.** Source was inspected at `d399954`; startup, model quality, browser compatibility, CI and deployment were not revalidated by this documentation update.
 
-- 🚀 **100% Local Inference**: Runs entirely in your browser using WebGPU
-- 🔧 **Tool Calling**: Web search and URL fetch capabilities
-- 🏦 **Financial Governance**: Optimized for financial compliance and regulatory queries
-- 📊 **Real-time Data**: Access current information, regulations, and market data
-- 🔒 **Privacy**: No data sent to servers (except tool API calls)
+## Start here
 
-## Available Tools
+- [Credential and data boundary](SECURITY.md): browser-held keys and remote requests.
+- [Tool flow](TOOL_CALLING.md): definitions, execution and limitations.
+- [Scenario simulation](tests/run-scenarios.html) and [fixture/validator source](tests/financial-governance-scenarios.js): useful for inspecting the runner, without proving real tool use.
+- [Historical deployment note](DEPLOYMENT_READY.md) and [historical implementation report](IMPLEMENTATION_SUMMARY.md): preserved old claims, not current readiness receipts.
 
-### 1. Web Search
-Search the web for current information using Linkup's search API.
+## Local setup
 
-**Example queries:**
-- "What are the current Basel III capital requirements?"
-- "Search for latest SEC climate disclosure rules"
-- "Find Federal Reserve CCAR stress test scenarios for 2024"
-
-### 2. URL Fetch
-Fetch and extract content from specific URLs.
-
-**Example queries:**
-- "Fetch content from https://www.sec.gov/rules/final/2024/example.html"
-- "Read the latest Basel Committee publication"
-
-## Quick Start
+Clone this repository, then use its lockfile:
 
 ```bash
-# Install dependencies
-npm install
-
-# Run development server
+git clone https://github.com/HomenShum/local-LLM-granite-4.0-linkup.git
+cd local-LLM-granite-4.0-linkup
+npm ci
 npm run dev
-
-# Build for production
-npm run build
 ```
 
-## Testing
+Open the address Vite prints. Node.js and npm are required. [package.json](package.json) declares no Node `engines`; locked Vite 6.3.6 declares `^18.0.0 || ^20.0.0 || >=22.0.0` in [package-lock.json](package-lock.json). Those are source declarations, not tested-version results from this update.
 
-Run the comprehensive test suite for financial governance scenarios:
+The worker requests a WebGPU adapter with `shader-f16` support. Its model/tokenizer loading uses Transformers.js `from_pretrained`; network, download and cache behavior still need verification on the target browser. An installed frontend does not prove the model can run on that device.
 
-```bash
-# Start dev server
-npm run dev
+Other declared commands are `npm run build`, `npm run preview` and `npm run lint`. No `npm test` script is declared. These commands were not executed for this documentation-only change.
 
-# Open test runner
-# Navigate to: http://localhost:5173/tests/run-scenarios.html
-```
+## Credentials and outbound data
 
-The test suite includes 10 scenarios covering:
-- Basel III Capital Requirements
-- SEC Reporting Requirements
-- Dodd-Frank Stress Testing
-- ESG Disclosure Requirements
-- And more...
+[src/utils/linkupApi.js](src/utils/linkupApi.js) reads `import.meta.env.VITE_LINKUP_API_KEY` and sends it as a Bearer credential directly from browser code to Linkup. Search queries and selected URLs are included in those remote requests. Local inference does not make the tool requests local.
 
-## Documentation
+A key supplied through `VITE_LINKUP_API_KEY` is **available to the browser user**. Keeping an environment file out of Git or setting a hosting-platform secret does not make a value bundled into client code confidential. Do not publish this design with a shared secret that visitors must not learn. A trusted server boundary for that use is not implemented here. See [SECURITY.md](SECURITY.md) before configuring a key.
 
-- [Tool Calling Guide](./TOOL_CALLING.md) - Complete documentation on tool calling
-- [Test Scenarios](./tests/financial-governance-scenarios.js) - 10 comprehensive test cases
-- [Linkup API Docs](https://docs.linkup.so) - Linkup API reference
+The tool module logs a missing-key warning when no usable key is supplied. The source does not read `VITE_ENABLE_TOOLS`; that old documented variable is not a supported tool-disable control.
 
-## Configuration
+## What the tests establish
 
-**Required:** Set up your Linkup API key to enable tool calling.
+The financial-governance prompts are example use cases. This documentation update establishes no compliance-accuracy or model-optimization result.
 
-1. Copy the example file:
-   ```bash
-   cp .env.example .env
-   ```
+The page at `/tests/run-scenarios.html` is a **simulation**. It supplies `scenario.expectedTools` as `toolsCalled` and constructs a mock final response, instead of running the model worker. Its green result or exported JSON does not prove a model generated a tool call, Linkup was contacted, or an answer was correct.
 
-2. Edit `.env` and add your API key:
-   ```bash
-   VITE_LINKUP_API_KEY=your_actual_api_key_here
-   VITE_ENABLE_TOOLS=true
-   ```
+It imports the ten-case financial array. Two additional multi-tool fixtures exist in the scenario module but are not imported by that page. The validator rejects missing expected tool names; answer criteria only add warnings. In a source inspection, all ten cases also accepted caller-supplied expected names with an empty answer and no worker execution. This demonstrates the validator's limit, not an application success rate.
 
-3. Get your API key from [Linkup Dashboard](https://app.linkup.so)
+The separate [CLI smoke script](tests/run-smoke-test.mjs) reads `LINKUP_API_KEY`, makes real API requests and currently logs a key prefix. Do not publish its output or run it in shared logs with a private key. Neither the live smoke script nor the model/worker was exercised for this update.
 
-4. Restart the dev server to load the environment variables
+## Source map
 
-## Architecture
+| File | Responsibility |
+|---|---|
+| [src/App.jsx](src/App.jsx) | Creates the browser worker and handles its status messages |
+| [src/worker.js](src/worker.js) | Checks GPU support and runs model/tool iterations |
+| [src/utils/tools.js](src/utils/tools.js) | Tool schemas, parser and execution dispatch |
+| [src/utils/linkupApi.js](src/utils/linkupApi.js) | Direct authenticated Linkup requests and result formatting |
+| [tests/run-scenarios.html](tests/run-scenarios.html) | Simulated scenario display and export |
+| [tests/financial-governance-scenarios.js](tests/financial-governance-scenarios.js) | Ten financial fixtures, two extra multi-tool fixtures and validator |
 
-```
-src/
-├── utils/
-│   ├── linkupApi.js       # Linkup API integration
-│   └── tools.js           # Tool definitions and execution
-├── worker.js              # WebGPU worker with tool calling
-├── App.jsx                # Main application
-└── components/
-    └── Chat.jsx           # Chat interface with tool indicators
-```
+## Documentation change record
 
-## License
+**2026-10-15:** Corrected the credential boundary and test-evidence claims, added first-run navigation and source prerequisites, and separated inherited reports from current verification. Runtime, dependencies, model selection and test behavior remain unchanged. Related corrections: [security](SECURITY.md), [tools](TOOL_CALLING.md), [deployment history](DEPLOYMENT_READY.md), [implementation history](IMPLEMENTATION_SUMMARY.md).
 
-Apache 2.0
-
-## References
-
-- [Granite Model](https://huggingface.co/ibm-granite/granite-4.0-micro)
-- [Transformers.js](https://huggingface.co/docs/transformers.js)
-- [Linkup API](https://linkup.so)
-
-Tool Call:
-
-
-Chat History:
-- KV cache
-
-Context Management:
+The preserved hosting frontmatter declares `apache-2.0`; this source snapshot has no standalone `LICENSE` file.

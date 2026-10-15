@@ -1,3 +1,12 @@
+# Historical deployment handoff
+
+**2026-10-15 correction:** The original note below describes an inherited Hugging Face Space and commit `5c9a3c9`. It is not a current deployment or security receipt for this GitHub copy. Its Vite-key setup does not keep that value private from browser users, and its old test counts have not been revalidated.
+
+Use the [current README](README.md), [credential boundary](SECURITY.md) and [tool/test explanation](TOOL_CALLING.md) for this revision. No app, provider, browser or deployment was tested by this documentation correction. The original note is preserved byte-for-byte inside the section below.
+
+<details>
+<summary>Original 2025 deployment note — superseded readiness advice</summary>
+
 # 🚀 Deployment Ready - Security Checklist Complete
 
 ## ✅ Security Improvements Completed
@@ -205,3 +214,5 @@ After pushing to HuggingFace Spaces:
 **Commit:** 5c9a3c9  
 **Status:** ✅ SECURE - Ready to Push
 
+
+</details>
